@@ -1,0 +1,19 @@
+{
+  "name": "lambda-api-test",
+  "version": "1.0.0",
+  "author": "TheDarkDnKTv",
+  "license": "MIT",
+  "packageManager": "yarn@1.20.00",
+  "engines": {
+    "node": ">=0.16"
+  },
+  "devDependencies": {
+    "@types/axios": "^0.14.0",
+    "@types/node": "^18.19.39",
+    "typescript": "^5.5.2"
+  },
+  "peerDependencies": {
+    "axios": "^1.7.2",
+    "lambda-api": "^1.1.0"
+  }
+}
