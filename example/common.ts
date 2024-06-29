@@ -1,5 +1,7 @@
-import { defineEndpoint } from '../lib'
-import { EndpointDefinition, HttpMethod } from '../lib/types'
+import { defineCustomEndpoint, defineEndpoint } from '../lib'
+import { Endpoint, EndpointDefinition, HttpMethod } from '../lib/types'
+
+export type MyEndpoint<T extends EndpointDefinition = EndpointDefinition> = Endpoint<T> & { auth: boolean };
 
 type Post = {
     id: number
@@ -7,5 +9,8 @@ type Post = {
     content: string
 }
 
-type PostGetDef = EndpointDefinition<never, Post, never, { id: number }>;
-export const PostGet = defineEndpoint<PostGetDef>(HttpMethod.GET, '/post/:id');
+type PostsGetDef = EndpointDefinition<never, Array<Post>, never, never>;
+type PostUpdateDef = EndpointDefinition<Omit<Post, 'id'>, Post, never, { id: number }>;
+
+export const PostsGet = defineEndpoint<PostsGetDef>(HttpMethod.GET, '/posts');
+export const PostUpdate = defineCustomEndpoint<MyEndpoint<PostUpdateDef>>(HttpMethod.GET, '/post/:id', { auth: true });

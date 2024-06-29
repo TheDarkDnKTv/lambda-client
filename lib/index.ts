@@ -1,7 +1,7 @@
-import axios, { HttpStatusCode } from 'axios'
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, CreateAxiosDefaults, HttpStatusCode } from 'axios'
 import { API, Request, Response } from 'lambda-api'
 import {
-    ApiClient, AxiosProvider,
+    ApiClient, ApiClientConfig,
     BaseRequestContext, ContextProvider,
     Controller,
     ControllerMetadata,
@@ -32,7 +32,21 @@ export class BasicRequestContext<T extends EndpointDefinition = EndpointDefiniti
     }
 }
 
-export function defineHandler<T extends Endpoint>(definition: T, controller: Controller<T['_type']>): ControllerMetadata<T['_type']>;
+export class DefaultClientConfig implements ApiClientConfig {
+
+    createAxios(config: CreateAxiosDefaults): AxiosInstance {
+        return axios.create(config);
+    }
+
+    prepareRequestConfig(endpoint: Endpoint, initialConfig: AxiosRequestConfig): AxiosRequestConfig {
+        return initialConfig;
+    }
+
+    isResponseInvalid(response: AxiosResponse): boolean {
+        return response.status >= HttpStatusCode.BadRequest;
+    }
+}
+
 export function defineHandler<T extends Endpoint>(
     definition: T,
     controller: Controller<T['_type']>,
@@ -64,7 +78,33 @@ export function defineEndpoint<Def extends EndpointDefinition>(
     }
 }
 
-export function registerHandlers<T extends Record<string, ControllerMetadata>>(api: API, handlers: T) {
+export function defineCustomEndpoint<T extends Endpoint<U>, U extends EndpointDefinition = EndpointDefinition>(
+    method: HttpMethod,
+    path: string,
+    extras: Omit<T, keyof Endpoint>
+): T {
+    return {
+        ...extras,
+        method,
+        path,
+        _type: {} as unknown as U
+    } as T
+}
+
+/**
+ * @param api
+ * @param handlers
+ * @param endpoints argument is optional, use it in case if you want to validate that defined common types also implemented at serverside to avoid unexpected errors
+ */
+export function registerHandlers<T extends Record<string, ControllerMetadata>, U extends Record<string, Endpoint> = Record<string, Endpoint>>(api: API, handlers: T, endpoints?: U) {
+    if (endpoints) {
+        for (const key of Object.keys(endpoints)) {
+            if (!Object.prototype.hasOwnProperty.call(handlers, lowerCased(key))) {
+                throw new Error(`Defined endpoint < ${key} > has not been found at server-side definition, ApiClient call will cause error!`);
+            }
+        }
+    }
+
     for (const key of Object.keys(handlers)) {
         const controller = handlers[key] as ControllerMetadata
         const method = controller.endpoint.method;
@@ -72,19 +112,27 @@ export function registerHandlers<T extends Record<string, ControllerMetadata>>(a
     }
 }
 
-export function createApiClient<T extends Record<string, Endpoint>>(baseURL: string, endpoints: T): ApiClient<T>;
-export function createApiClient<T extends Record<string, Endpoint>>(baseURL: string, endpoints: T, axiosProvider: AxiosProvider = axios.create): ApiClient<T> {
-    const client: ApiClient<T> = {} as ApiClient<T>;
-    const http = axiosProvider({
+export function createApiClient<T extends Record<string, Endpoint>>(baseURL: string, endpoints: T, clientConfig?: ApiClientConfig): ApiClient<T> {
+    const client = {} as Record<string, unknown>;
+    if (!clientConfig) {
+        clientConfig = new DefaultClientConfig();
+    }
+
+    const http = clientConfig.createAxios({
         baseURL,
         validateStatus: () => true
     });
 
     for (const key of Object.keys(endpoints)) {
         const endpoint = endpoints[key]
-        const lowerCaseKey = (key.charAt(0).toLowerCase() + key.slice(1)) as keyof ApiClient<T>;
-        client[lowerCaseKey] = createApiMethod(http, endpoint);
+        const lowerCaseKey = lowerCased(key) as keyof ApiClient<T>;
+        client[lowerCaseKey] = createApiMethod(http, endpoint, clientConfig);
     }
 
-    return client;
+    return client as ApiClient<T>;
+}
+
+function lowerCased(value: string): string {
+    return value && value.length > 1 ?
+        value.charAt(0).toLowerCase() + value.slice(1) : '';
 }

@@ -1,5 +1,6 @@
-import { AxiosInstance, AxiosResponseHeaders, CreateAxiosDefaults, RawAxiosResponseHeaders } from 'axios'
+import { AxiosInstance, AxiosResponseHeaders, AxiosRequestConfig, CreateAxiosDefaults, RawAxiosResponseHeaders, AxiosResponse } from 'axios'
 import { HandlerFunction, Request, Response } from 'lambda-api'
+import { exec } from 'node:child_process'
 
 export enum HttpMethod {
     GET = 'get',
@@ -55,13 +56,37 @@ type OmitNever<T> = Omit<T, keyof {
 
 export type ApiMethodArguments<T extends EndpointDefinition> = OmitNever<Omit<T, 'response'>>
 export type ApiMethodResponse<T> = [ null, ApiError ] | [ T, null ];
-export type ApiMethod<T extends EndpointDefinition> = (data: ApiMethodArguments<T>) => Promise<ApiMethodResponse<T['response']>>
+export type ApiMethod<T extends EndpointDefinition> = keyof OmitNever<Omit<T, 'response'>> extends never ?
+    (data?: ApiMethodArguments<T>) => Promise<ApiMethodResponse<T['response']>> :
+    (data: ApiMethodArguments<T>) => Promise<ApiMethodResponse<T['response']>>
+
 export type ApiClient<T extends Record<string, Endpoint>, U extends keyof T = keyof T> = {
     [P in Uncapitalize<U extends string ? U : never>]: ApiMethod<T[Capitalize<P>]['_type']>
 }
 
 export type ContextProvider<T extends EndpointDefinition, U extends BaseRequestContext<T> = BaseRequestContext<T>> = (req: Request, res: Response) => Promise<U> | U;
-export type AxiosProvider = (config: CreateAxiosDefaults) => AxiosInstance;
+export interface ApiClientConfig<T extends Endpoint = Endpoint> {
+
+    /**
+     * Make sure you're not touching `validateStatus` property, as throwing error from axios will violate logic of handling responses
+     * @param config
+     */
+    createAxios(config: CreateAxiosDefaults): AxiosInstance;
+
+    /**
+     * You can overwrite config, but be careful with `params`, as it is set to query params
+     * @param initialConfig
+     * @param endpoint
+     */
+    prepareRequestConfig(endpoint: T, initialConfig: AxiosRequestConfig): AxiosRequestConfig;
+
+    /**
+     *
+     * @param response
+     * @returns true if request contains errors, and will return {@link ApiError}
+     */
+    isResponseInvalid(response: AxiosResponse): boolean;
+}
 
 export type ApiError = {
     code: number,

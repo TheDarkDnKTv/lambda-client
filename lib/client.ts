@@ -1,14 +1,25 @@
 import { AxiosInstance } from 'axios';
-import { ApiError, ApiMethod, ApiMethodArguments, ApiMethodResponse, Endpoint, HttpMethod } from './types'
+import {
+    ApiClientConfig,
+    ApiError,
+    ApiMethod,
+    ApiMethodArguments,
+    ApiMethodResponse,
+    Endpoint,
+    HttpMethod,
+} from './types'
 
-export function createApiMethod<T extends Endpoint = Endpoint>(axios: AxiosInstance, endpoint: T): ApiMethod<T['_type']> {
-    return async (data: ApiMethodArguments<typeof endpoint._type>) => {
-        // TODO auth
+export function createApiMethod<T extends Endpoint = Endpoint>(axios: AxiosInstance, endpoint: T, clientConfig: ApiClientConfig): ApiMethod<T['_type']> {
+    return (async (data?: ApiMethodArguments<typeof endpoint._type>) => {
+        if (!data) {
+            data = {} as ApiMethodArguments<typeof endpoint._type>;
+        }
+
         const method = endpoint.method
         const path = fillPathVariables(endpoint.path, data.params);
-        const config = {
+        const config = clientConfig.prepareRequestConfig(endpoint, {
             params: data.query
-        };
+        });
 
         let response;
         switch (method) {
@@ -28,7 +39,7 @@ export function createApiMethod<T extends Endpoint = Endpoint>(axios: AxiosInsta
             }
         }
 
-        if (response.status >= 400) {
+        if (clientConfig.isResponseInvalid(response)) {
             return [
                 null,
                 {
@@ -41,7 +52,7 @@ export function createApiMethod<T extends Endpoint = Endpoint>(axios: AxiosInsta
         }
 
         return [ response.data, null ] satisfies ApiMethodResponse<T['_type']['response']>;
-    }
+    }) as ApiMethod<T['_type']>
 }
 
 function fillPathVariables(uri: string, params: Record<string, unknown>): string {
