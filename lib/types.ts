@@ -1,12 +1,5 @@
-import { HandlerFunction } from 'lambda-api'
-
-export interface BaseRequestContext<T> {
-    get body(): T extends EndpointDefinition<infer U, unknown> ? U : never
-
-    get query(): T extends EndpointDefinition<unknown, unknown, infer U> ? U : never
-
-    get params(): T extends EndpointDefinition<unknown, unknown, unknown, infer U> ? U : never
-}
+import { AxiosInstance, AxiosResponseHeaders, CreateAxiosDefaults, RawAxiosResponseHeaders } from 'axios'
+import { HandlerFunction, Request, Response } from 'lambda-api'
 
 export enum HttpMethod {
     GET = 'get',
@@ -16,18 +9,9 @@ export enum HttpMethod {
     DELETE = 'delete',
 }
 
-export type Endpoint<T extends EndpointDefinition<unknown, unknown>> = {
-    method: HttpMethod
-    path: string
-    _type: T // dummy property for typings
-}
-export type ControllerMetadata<T extends EndpointDefinition<unknown, unknown>> = {
-    handler: HandlerFunction
-    endpoint: Endpoint<T>
-}
 export type EndpointDefinition<
-    Body,
-    Response,
+    Body = unknown,
+    Response = unknown,
     Query = unknown,
     Params extends Record<string, unknown> = Record<string, unknown>,
 > = {
@@ -36,15 +20,52 @@ export type EndpointDefinition<
     query: Query
     params: Params
 }
-export type Controller<T extends EndpointDefinition<unknown, unknown>> = (ctx: BaseRequestContext<T>) => Promise<T['response']>
-type OmitNever<T> = Omit<
-    T,
-    keyof {
-        [P in keyof T as T[P] extends never ? P : never]: T[P]
-    }
->
-export type ApiArgs<T extends EndpointDefinition<unknown, unknown>> = OmitNever<Omit<T, 'response'>>
-type ApiCall<T extends EndpointDefinition<unknown, unknown>> = (data: ApiArgs<T>) => Promise<T['response']>
-export type ApiClient<T extends Record<string, Endpoint<any>>> = {
-    [P in keyof T]: ApiCall<T[P]['_type']>
+
+export namespace Extract {
+    export type Body<T> = T extends EndpointDefinition<infer U> ? U : never;
+    export type Response<T> = T extends EndpointDefinition<unknown, infer U> ? U : never;
+    export type Query<T> = T extends EndpointDefinition<unknown, unknown, infer U> ? U : never;
+    export type Params<T> = T extends EndpointDefinition<unknown, unknown, unknown, infer U> ? U : never;
+}
+
+export type Endpoint<T extends EndpointDefinition = EndpointDefinition> = {
+    method: HttpMethod
+    path: string
+    _type: T // dummy property for typings
+}
+
+export interface BaseRequestContext<T> {
+    get body(): Extract.Body<T>
+
+    get query(): Extract.Query<T>
+
+    get params(): Extract.Params<T>
+}
+
+export type ControllerMetadata<T extends EndpointDefinition = EndpointDefinition> = {
+    handler: HandlerFunction
+    endpoint: Endpoint<T>
+}
+
+export type Controller<T extends EndpointDefinition, U extends BaseRequestContext<T> = BaseRequestContext<T>> = (ctx: U) => Promise<Extract.Response<T>>
+
+type OmitNever<T> = Omit<T, keyof {
+    [P in keyof T as T[P] extends never ? P : never]: T[P]
+}>
+
+export type ApiMethodArguments<T extends EndpointDefinition> = OmitNever<Omit<T, 'response'>>
+export type ApiMethodResponse<T> = [ null, ApiError ] | [ T, null ];
+export type ApiMethod<T extends EndpointDefinition> = (data: ApiMethodArguments<T>) => Promise<ApiMethodResponse<T['response']>>
+export type ApiClient<T extends Record<string, Endpoint>, U extends keyof T = keyof T> = {
+    [P in Uncapitalize<U extends string ? U : never>]: ApiMethod<T[Capitalize<P>]['_type']>
+}
+
+export type ContextProvider<T extends EndpointDefinition, U extends BaseRequestContext<T> = BaseRequestContext<T>> = (req: Request, res: Response) => Promise<U> | U;
+export type AxiosProvider = (config: CreateAxiosDefaults) => AxiosInstance;
+
+export type ApiError = {
+    code: number,
+    message: string,
+    headers: RawAxiosResponseHeaders | AxiosResponseHeaders,
+    body?: Record<string, unknown>
 }

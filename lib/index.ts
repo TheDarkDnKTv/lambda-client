@@ -1,26 +1,48 @@
 import axios, { HttpStatusCode } from 'axios'
-// import * from 'lambda-api';
-// import * as server from './test-server'
-import { API } from 'lambda-api'
+import { API, Request, Response } from 'lambda-api'
 import {
-    ApiArgs,
-    ApiClient,
-    BaseRequestContext,
+    ApiClient, AxiosProvider,
+    BaseRequestContext, ContextProvider,
     Controller,
     ControllerMetadata,
     Endpoint,
-    EndpointDefinition,
+    EndpointDefinition, Extract,
     HttpMethod,
 } from './types'
+import { createApiMethod } from './client'
 
-export function defineHandler<T extends Endpoint<any>>(
+
+export class BasicRequestContext<T extends EndpointDefinition = EndpointDefinition> implements BaseRequestContext<T>{
+
+    constructor(
+        protected req: Request,
+        protected res: Response
+    ) {}
+
+    get body(): Extract.Body<T> {
+        return this.req.body as Extract.Body<T>
+    }
+
+    get params(): Extract.Params<T> {
+        return this.req.params as Extract.Params<T>
+    }
+
+    get query(): Extract.Query<T> {
+        return this.req.query as Extract.Query<T>
+    }
+}
+
+export function defineHandler<T extends Endpoint>(definition: T, controller: Controller<T['_type']>): ControllerMetadata<T['_type']>;
+export function defineHandler<T extends Endpoint>(
     definition: T,
-    controller: Controller<T['_type']>
+    controller: Controller<T['_type']>,
+    contextProvider: ContextProvider<T['_type']> = (res, req) => new BasicRequestContext<T['_type']>(res, req)
 ): ControllerMetadata<T['_type']> {
     return {
         endpoint: definition,
         handler: async (req, res) => {
-            const response = await controller({} as unknown as BaseRequestContext<T['_type']>)
+            const context = await contextProvider(req, res);
+            const response = await controller(context);
 
             if (response) {
                 res.json(response)
@@ -31,51 +53,38 @@ export function defineHandler<T extends Endpoint<any>>(
     }
 }
 
-export function defineEndpoint<Body, Response, Query = never, Params extends Record<string, unknown> = Record<string, unknown>>(
+export function defineEndpoint<Def extends EndpointDefinition>(
     method: HttpMethod,
     path: string
-): Endpoint<EndpointDefinition<Body, Response, Query, Params>> {
+): Endpoint<Def> {
     return {
         method,
         path,
-        _type: {} as unknown as EndpointDefinition<Body, Response, Query, Params>,
+        _type: {} as unknown as Def
     }
 }
 
-export function registerHandlers<T extends Record<string, ControllerMetadata<any>>>(api: API, handlers: T) {
+export function registerHandlers<T extends Record<string, ControllerMetadata>>(api: API, handlers: T) {
     for (const key of Object.keys(handlers)) {
-        const controller = handlers[key] as ControllerMetadata<any>
-        const method: Lowercase<HttpMethod> = controller.endpoint.method.toLowerCase() as Lowercase<HttpMethod>
+        const controller = handlers[key] as ControllerMetadata
+        const method = controller.endpoint.method;
         api[method](controller.endpoint.path, controller.handler)
     }
 }
 
-export function createApiClient<T extends Record<string, Endpoint<any>>>(endpoints: T): ApiClient<T> {
-    const client: any = {}
-    const http = axios.create() // TODO more flexibility
+export function createApiClient<T extends Record<string, Endpoint>>(baseURL: string, endpoints: T): ApiClient<T>;
+export function createApiClient<T extends Record<string, Endpoint>>(baseURL: string, endpoints: T, axiosProvider: AxiosProvider = axios.create): ApiClient<T> {
+    const client: ApiClient<T> = {} as ApiClient<T>;
+    const http = axiosProvider({
+        baseURL,
+        validateStatus: () => true
+    });
+
     for (const key of Object.keys(endpoints)) {
         const endpoint = endpoints[key]
-        client[key] = async (data: ApiArgs<EndpointDefinition<object, never, object>>) => {
-            // TODO auth
-            const method = endpoint.method
-            const path = (function () {
-                // TODO parse params and build new path
-                return endpoint.path
-            })()
-
-            let response
-            if (method === HttpMethod.GET) {
-                response = await http.get(path, {
-                    params: data.query,
-                })
-            } else {
-                response = await http[method](path, data.body)
-            }
-
-            // TODO throw if not OK
-            return response.data
-        }
+        const lowerCaseKey = (key.charAt(0).toLowerCase() + key.slice(1)) as keyof ApiClient<T>;
+        client[lowerCaseKey] = createApiMethod(http, endpoint);
     }
 
-    return client as ApiClient<T>
+    return client;
 }

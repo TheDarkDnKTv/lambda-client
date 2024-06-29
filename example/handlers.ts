@@ -1,4 +1,4 @@
-import { defineHandler } from './index'
+import { defineHandler } from '../lib'
 import { PostGet } from './common'
 
 export const postGet = defineHandler(PostGet, async (ctx) => {
