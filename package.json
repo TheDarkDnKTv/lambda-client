@@ -1,9 +1,12 @@
 {
     "name": "lambda-api-client",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "TheDarkDnKTv",
     "license": "MIT",
+    "type": "module",
     "packageManager": "yarn@1.20.00",
+    "main": "lib/index.ts",
+    "files": [ "lib/" ],
     "engines": {
         "node": ">=0.16"
     },
