@@ -1,4 +1,5 @@
-import { defineEndpoint, HttpMethod } from './index'
+import { defineEndpoint } from './index'
+import { HttpMethod } from './types'
 
 type Post = {
     id: number
