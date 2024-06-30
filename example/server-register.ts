@@ -1,7 +1,6 @@
 import createAPI from 'lambda-api'
-import * as handlers from './handlers'
-import * as endpoints from './common'
-import { registerHandlers } from '../lib'
+import * as handlers from './handlers.js'
+import { ApiServer } from '../lib/index.js'
 
 const api = createAPI()
-registerHandlers(api, handlers, endpoints);
+ApiServer.registerHandlers(api, handlers);

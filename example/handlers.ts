@@ -1,7 +1,7 @@
-import { defineHandler } from '../lib'
-import { PostsGet, PostUpdate } from './common'
+import { PostsGet, PostUpdate, Test } from './common.js'
+import { ApiServer } from '../lib/index.js'
 
-export const postGet = defineHandler(PostsGet, async () => {
+export const postGet = ApiServer.defineHandler(PostsGet, async () => {
     return [
         {
             id: 1,
@@ -16,10 +16,14 @@ export const postGet = defineHandler(PostsGet, async () => {
     ]
 });
 
-export const postUpdate = defineHandler(PostUpdate, async (ctx) => {
+export const postUpdate = ApiServer.defineHandler(PostUpdate, async (ctx) => {
     return {
         id: ctx.params.id,
         name: 'test 1',
         content: 'some text 1'
     }
+});
+
+export const testEndpoint = ApiServer.defineHandler(Test, async () => {
+    console.log('working')
 });
