@@ -68,7 +68,10 @@ export function defineHandler<T extends Endpoint>(
  */
 export function registerHandlers<T extends RecursiveRecord<ControllerMetadata>>(api: API, handlers: T) {
     // @ts-expect-error property exists at implementation
-    const prefix: string = (api._base ?? '').trim()
+    const prefix: string = (api._prefix as Array<string> ?? [])
+        .filter(v => v && v.length > 0)
+        .map(v => `/${v}`)
+        .join('')
     function doRegister(map: Record<string, unknown>) {
         for (const key of Object.keys(map)) {
             const controller = map[key]
