@@ -65,14 +65,14 @@ export interface ApiClientConfig<T extends Endpoint = Endpoint> {
      * @param initialConfig
      * @param endpoint
      */
-    prepareRequestConfig(endpoint: T, initialConfig: AxiosRequestConfig): AxiosRequestConfig
+    prepareRequestConfig(endpoint: T, initialConfig: AxiosRequestConfig): Promise<AxiosRequestConfig> | AxiosRequestConfig
 
     /**
      *
      * @param response
      * @returns true if request contains errors, and will return {@link ApiError}
      */
-    isResponseInvalid(response: AxiosResponse): boolean
+    isResponseInvalid(response: AxiosResponse): Promise<boolean> | boolean
 }
 
 export type ApiError = {

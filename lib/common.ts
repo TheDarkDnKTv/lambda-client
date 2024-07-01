@@ -24,7 +24,7 @@ export function createApiMethod<T extends Endpoint = Endpoint>(
 
         const method = endpoint.method
         const path = fillPathVariables(endpoint.path, data.params)
-        const config = clientConfig.prepareRequestConfig(endpoint, {
+        const config = await clientConfig.prepareRequestConfig(endpoint, {
             params: data.query,
         })
 
@@ -46,7 +46,7 @@ export function createApiMethod<T extends Endpoint = Endpoint>(
             }
         }
 
-        if (clientConfig.isResponseInvalid(response)) {
+        if (await clientConfig.isResponseInvalid(response)) {
             return [
                 null,
                 {
@@ -88,11 +88,11 @@ export class DefaultClientConfig implements ApiClientConfig {
         return axios.create(config)
     }
 
-    prepareRequestConfig(endpoint: Endpoint, initialConfig: AxiosRequestConfig): AxiosRequestConfig {
+    prepareRequestConfig(endpoint: Endpoint, initialConfig: AxiosRequestConfig): Promise<AxiosRequestConfig> | AxiosRequestConfig {
         return initialConfig
     }
 
-    isResponseInvalid(response: AxiosResponse): boolean {
+    isResponseInvalid(response: AxiosResponse): Promise<boolean> | boolean {
         return response.status >= HttpStatusCode.BadRequest
     }
 }
@@ -127,10 +127,6 @@ export function createApiClient<T extends RecursiveRecord<Endpoint>>(
     }
 
     return convertToApi(endpoints) as ApiClient<T>
-}
-
-export function lowerCased(value: string): string {
-    return value && value.length > 1 ? value.charAt(0).toLowerCase() + value.slice(1) : ''
 }
 
 function fillPathVariables(uri: string, params: Record<string, unknown>): string {
